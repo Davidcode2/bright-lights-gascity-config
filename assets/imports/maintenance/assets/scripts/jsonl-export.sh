@@ -174,6 +174,10 @@ refresh_archive_remote_main() {
     git fetch origin main -q 2>/dev/null
 }
 
+archive_origin_configured() {
+    git remote get-url origin >/dev/null 2>&1
+}
+
 archive_has_local_only_commits_from_tracking() {
     local merge_base
 
@@ -334,6 +338,13 @@ push_archive_main() {
 
         return 1
     }
+
+    if ! archive_origin_configured; then
+        echo "jsonl-export: archive has no origin remote; keeping local archive only" >&2
+        set_consecutive_push_failures "0"
+        clear_pending_archive_push
+        return 0
+    fi
 
     if ! refresh_archive_remote_main; then
         if git rev-parse --verify refs/remotes/origin/main >/dev/null 2>&1; then
