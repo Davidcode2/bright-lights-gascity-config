@@ -1,0 +1,6 @@
+[pack]
+name = "bright-lights"
+schema = 2
+
+[imports.gastown]
+source = "./assets/imports/gastown"

@@ -1,0 +1,276 @@
+description = """
+Schreinerei multi-agent delivery workflow with Gastown refinery handoff.
+
+This workflow is city-local and rig-specific. It uses three specialist agents:
+
+1. `schreiner-planner` for business-context understanding and execution planning
+2. `schreiner-dev` for test-first implementation and local verification
+3. `schreiner-e2e` for browser-level validation when frontend-visible changes are involved
+
+After those steps are complete, the workflow hands the original work bead to
+Gastown refinery for final merge validation and closure.
+
+This keeps role behavior in prompts and workflow ordering in the formula,
+following Gas City's intended split of responsibilities.
+"""
+formula = "mol-schreinerei-refinery-work"
+version = 1
+contract = "graph.v2"
+
+[vars]
+[vars.issue]
+description = "The routed source work bead ID"
+required = true
+
+[vars.base_branch]
+description = "Base branch for implementation and refinery target"
+default = "main"
+
+[vars.planner_target]
+description = "Planner agent target"
+default = "schreinerei/schreiner-planner"
+
+[vars.dev_target]
+description = "Development agent target"
+default = "schreinerei/schreiner-dev"
+
+[vars.e2e_target]
+description = "Browser / E2E validation target"
+default = "schreinerei/schreiner-e2e"
+
+[vars.refinery_target]
+description = "Gastown refinery target"
+default = "schreinerei/gastown.refinery"
+
+[[steps]]
+id = "plan-work"
+title = "Understand context and produce an execution plan"
+description = """
+You are the planning specialist for work bead `{{issue}}`.
+
+Your job:
+
+1. read the source bead carefully
+2. understand the business and product context
+3. inspect the existing code and analogous patterns
+4. identify relevant requirements, constraints, and risks
+5. write an implementation-ready plan back to the source bead notes
+
+Required inputs:
+
+```bash
+gc prime
+bd prime
+bd show {{issue}}
+git status --short --branch
+```
+
+Read these when relevant:
+
+- `AGENTS.md`
+- `README.md`
+- `.planning/PROJECT.md`
+- `.planning/REQUIREMENTS.md`
+- `.planning/FEATURES.md`
+
+Write the plan durably to the source bead notes. Use this structure:
+
+```markdown
+## Plan
+
+### Goal
+...
+
+### Relevant Requirements
+...
+
+### Affected Areas
+...
+
+### Implementation Approach
+...
+
+### Test Plan
+...
+
+### Frontend / Browser Validation Needs
+...
+
+### Risks / Open Questions
+...
+```
+
+Do not implement code in this step unless the source bead explicitly asks for a
+planning artifact change in-repo. The deliverable is the plan on the source
+bead.
+"""
+metadata = { "gc.run_target" = "{{planner_target}}" }
+
+[[steps]]
+id = "implement-work"
+title = "Write tests first, implement, and run local verification"
+needs = ["plan-work"]
+description = """
+You are the implementation specialist for work bead `{{issue}}`.
+
+Before coding:
+
+```bash
+gc prime
+bd prime
+bd show {{issue}}
+bd show {{issue}} --json | jq '.[0].metadata'
+git status --short --branch
+```
+
+Read the source bead notes and follow the implementation plan written by the
+planner.
+
+Your job:
+
+1. create or reuse an isolated worktree and feature branch for this bead
+2. record `work_dir` and `branch` metadata on the source bead
+3. write or update tests first where feasible
+4. implement the feature with minimal focused changes
+5. run targeted local verification
+6. determine whether frontend-visible validation is required
+7. write `frontend_check_required=true|false` on the source bead metadata
+8. write a concise implementation summary to the source bead notes
+
+Repository rules from `AGENTS.md` are mandatory, especially tenant scoping,
+mobile-first behavior, and dedicated database isolation.
+
+Recommended commands:
+
+```bash
+git fetch --prune origin
+REPO_ROOT=$(git rev-parse --show-toplevel)
+WORKTREE_PATH="$REPO_ROOT/.worktrees/{{issue}}"
+BRANCH_NAME="feature/{{issue}}"
+if [ ! -d "$WORKTREE_PATH" ]; then
+  git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "origin/{{base_branch}}"
+fi
+cd "$WORKTREE_PATH"
+bd update {{issue}} --set-metadata work_dir="$WORKTREE_PATH" --set-metadata branch="$BRANCH_NAME"
+
+cargo check
+cargo test
+cargo export-types
+./scripts/ci-selective.sh --staged --fast
+./scripts/ci-selective.sh --branch
+git diff origin/{{base_branch}}...HEAD
+git status --short
+```
+
+When deciding whether E2E checks are needed, treat these as frontend-visible:
+
+- changes under `frontend/**`
+- generated TS contract changes
+- API / DTO / route changes that alter frontend behavior
+- user-flow changes on pages, dialogs, forms, planners, or calendars
+
+Set the metadata explicitly so the next step can act on it:
+
+```bash
+bd update {{issue}} --set-metadata frontend_check_required=true
+```
+
+or
+
+```bash
+bd update {{issue}} --set-metadata frontend_check_required=false
+```
+"""
+metadata = { "gc.run_target" = "{{dev_target}}" }
+
+[[steps]]
+id = "frontend-validation"
+title = "Run Playwright/browser validation when required"
+needs = ["implement-work"]
+description = """
+You are the browser validation specialist for work bead `{{issue}}`.
+
+First inspect whether frontend validation was requested:
+
+```bash
+bd show {{issue}} --json | jq -r '.[0].metadata.frontend_check_required // "false"'
+```
+
+If the result is `false`:
+
+- explicitly note that browser validation was skipped because no frontend-visible
+  change was detected
+- close this step without running Playwright
+
+If the result is `true`:
+
+1. inspect the bead, plan notes, and changed files
+2. understand the exact user workflow affected
+3. use the `playwright-cli` skill for browser-based validation
+4. run the smallest meaningful end-to-end checks that prove the changed flow works
+5. write concise durable results back to the source bead notes
+
+Use these commands to orient yourself:
+
+```bash
+gc prime
+bd show {{issue}}
+git status --short
+git diff --name-only origin/{{base_branch}}...HEAD
+```
+
+Your output should clearly say one of:
+
+- validated
+- skipped
+- blocked
+- failed
+
+If validation fails, document the exact failure point and user-visible impact.
+"""
+metadata = { "gc.run_target" = "{{e2e_target}}" }
+
+[[steps]]
+id = "handoff-to-refinery"
+title = "Push branch and hand off the source bead to Gastown refinery"
+needs = ["frontend-validation"]
+description = """
+Return to the implementation workspace and prepare the source bead for
+Gastown refinery.
+
+Required metadata on the source bead:
+
+- `branch`
+- `work_dir`
+- optional `frontend_check_required`
+
+Your job:
+
+1. reopen the worktree recorded on the source bead
+2. ensure the feature branch is committed and clean
+3. push the branch to origin
+4. set `target={{base_branch}}` on the source bead
+5. route the ORIGINAL source bead to `{{refinery_target}}`
+6. do not close the original bead yourself
+
+Suggested commands:
+
+```bash
+WORKTREE=$(bd show {{issue}} --json | jq -r '.[0].metadata.work_dir // empty')
+BRANCH=$(bd show {{issue}} --json | jq -r '.[0].metadata.branch // empty')
+cd "$WORKTREE"
+git status --short
+git push -u origin "$BRANCH"
+bd update {{issue}} --set-metadata target="{{base_branch}}"
+bd update {{issue}} --assignee="{{refinery_target}}" --set-metadata gc.routed_to="{{refinery_target}}"
+```
+
+Add a short note to the source bead summarizing:
+
+- branch pushed
+- local verification status
+- browser validation status or skip reason
+
+After the source bead is routed to refinery, your role in this workflow is done.
+"""
+metadata = { "gc.run_target" = "{{dev_target}}" }

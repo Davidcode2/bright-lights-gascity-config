@@ -1,0 +1,25 @@
+[workspace]
+provider = "codex"
+install_agent_hooks = ["codex"]
+
+[daemon]
+formula_v2 = true
+
+[providers.codex]
+base = "builtin:codex"
+option_defaults = { effort = "medium" }
+
+[providers.opencode]
+base = "builtin:opencode"
+
+[[rigs]]
+name = "hello-gas-city"
+
+[rigs.imports.gastown]
+source = "./assets/imports/gastown"
+
+[[rigs]]
+name = "schreinerei"
+
+[rigs.imports.gastown]
+source = "./assets/imports/gastown"

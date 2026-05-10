@@ -1,0 +1,17 @@
+# Gas City machine-local site binding and runtime state.
+.gc/
+.runtime/
+hooks/
+.codex/
+.opencode/
+
+# Beads/Dolt runtime state. Work and mail are durable in the local bead store,
+# but this configuration repo tracks the portable city/pack definition only.
+.beads/
+.dolt/
+*.db
+.beads-credential-key
+
+# Local package/cache state.
+.opencode/node_modules/
+node_modules/

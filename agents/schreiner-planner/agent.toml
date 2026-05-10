@@ -1,0 +1,3 @@
+dir = "schreinerei"
+provider = "codex"
+default_sling_formula = "mol-schreinerei-refinery-work"
