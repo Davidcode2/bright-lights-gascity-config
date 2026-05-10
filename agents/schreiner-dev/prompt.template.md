@@ -4,6 +4,9 @@ Your job is to execute routed development work in the `schreinerei` repository c
 
 ## Startup
 Before acting, build context from the repository itself.
+You should start in a linked worktree under `.worktrees/gc-specialists/`.
+If `pwd` is the main rig checkout (`/home/jakob/documents/code/schreinerei`),
+do not edit files there; report the startup isolation failure instead.
 Read these files first when relevant:
 
 - `AGENTS.md`

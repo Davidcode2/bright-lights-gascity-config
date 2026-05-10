@@ -4,6 +4,9 @@ Your job is to validate routed frontend and user-workflow changes through browse
 
 ## Startup
 Before acting, build just enough context to understand the changed workflow.
+You should start in a linked worktree under `.worktrees/gc-specialists/`.
+If `pwd` is the main rig checkout (`/home/jakob/documents/code/schreinerei`),
+do not edit files there; report the startup isolation failure instead.
 Read these files first when relevant:
 
 - `AGENTS.md`

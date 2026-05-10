@@ -144,7 +144,11 @@ Recommended commands:
 
 ```bash
 git fetch --prune origin
-REPO_ROOT=$(git rev-parse --show-toplevel)
+CURRENT_ROOT=$(git rev-parse --show-toplevel)
+case "$CURRENT_ROOT" in
+  */.worktrees/*) REPO_ROOT="${CURRENT_ROOT%%/.worktrees/*}" ;;
+  *) REPO_ROOT="$CURRENT_ROOT" ;;
+esac
 WORKTREE_PATH="$REPO_ROOT/.worktrees/{{issue}}"
 BRANCH_NAME="feature/{{issue}}"
 if [ ! -d "$WORKTREE_PATH" ]; then

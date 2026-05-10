@@ -1,3 +1,5 @@
 dir = "schreinerei"
 provider = "codex"
 default_sling_formula = "mol-schreinerei-refinery-work"
+work_dir = "{{.RigRoot}}/.worktrees/gc-specialists/{{.AgentBase}}"
+pre_start = ["{{.ConfigDir}}/assets/imports/gastown/assets/scripts/worktree-setup.sh {{.RigRoot}} {{.WorkDir}} {{.AgentBase}} --sync"]
